@@ -1,6 +1,5 @@
 package com.androidfu.timerpoc.app;
 
-import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
@@ -8,7 +7,6 @@ import android.content.res.Resources;
 import android.graphics.Canvas;
 import android.graphics.drawable.Drawable;
 import android.os.CountDownTimer;
-import android.os.Handler;
 import android.text.format.Time;
 import android.util.AttributeSet;
 import android.view.View;
@@ -21,10 +19,13 @@ import android.widget.RemoteViews;
 @RemoteViews.RemoteView
 public class TimerView extends View {
 
-    private final Handler mHandler = new Handler();
+    public interface OnTimerStateChanged {
+        public void onFinished(TimerView timerView);
+
+        public void onStarted(TimerView timerView);
+    }
 
     private OnTimerStateChanged listener;
-    private BroadcastReceiver receiver;
     private TimerViewCountDownTimer timerViewCountDownTimer;
     private Drawable secondHand;
     private Drawable timerFace;
@@ -40,11 +41,10 @@ public class TimerView extends View {
     private int repetitions = 1;
 
     public TimerView(Context context) {
-        super(context);
+        this(context, null);
     }
 
     public TimerView(Context context, AttributeSet attrs) {
-        // TODO Ask Patrick about this.  Why does this call 'this' rather than super?
         this(context, attrs, 0);
     }
 
@@ -62,14 +62,6 @@ public class TimerView extends View {
         timerFaceHeight = timerFace.getIntrinsicHeight();
 
         secondHand = resources.getDrawable(R.drawable.second_hand);
-
-        receiver = new BroadcastReceiver() {
-            @Override
-            public void onReceive(Context context, Intent intent) {
-                invalidate();
-            }
-        };
-
     }
 
     @Override
@@ -79,7 +71,6 @@ public class TimerView extends View {
             attached = true;
             IntentFilter filter = new IntentFilter();
             filter.addAction(Intent.ACTION_TIME_TICK);
-            getContext().registerReceiver(receiver, filter, null, mHandler);
         }
     }
 
@@ -88,7 +79,6 @@ public class TimerView extends View {
         super.onDetachedFromWindow();
         if (attached) {
             timerViewCountDownTimer.cancel();
-            getContext().unregisterReceiver(receiver);
             attached = false;
         }
         listener = null;
@@ -152,18 +142,16 @@ public class TimerView extends View {
             canvas.save();
             canvas.scale(scale, scale, x, y);
         }
-
         if (changed) {
             dial.setBounds(x - (w / 2), y - (h / 2), x + (w / 2), y + (h / 2));
         }
         dial.draw(canvas);
-
         canvas.save();
-        canvas.rotate(mSecond, x, y);
 
-            w = secondHand.getIntrinsicWidth();
-            h = secondHand.getIntrinsicHeight();
-            secondHand.setBounds(x - (w / 2), y - (h / 2), x + (w / 2), y + (h / 2));
+        canvas.rotate(mSecond, x, y);
+        w = secondHand.getIntrinsicWidth();
+        h = secondHand.getIntrinsicHeight();
+        secondHand.setBounds(x - (w / 2), y - (h / 2), x + (w / 2), y + (h / 2));
         secondHand.draw(canvas);
         canvas.restore();
         if (scaled) {
@@ -203,11 +191,6 @@ public class TimerView extends View {
 
     public void setListener(OnTimerStateChanged listener) {
         this.listener = listener;
-    }
-
-    public interface OnTimerStateChanged {
-        public void onFinished(TimerView timerView);
-        public void onStarted(TimerView timerView);
     }
 
     public class TimerViewCountDownTimer extends CountDownTimer {
