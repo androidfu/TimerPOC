@@ -1,8 +1,6 @@
 package com.androidfu.timerpoc.app;
 
 import android.content.Context;
-import android.content.Intent;
-import android.content.IntentFilter;
 import android.content.res.Resources;
 import android.graphics.Canvas;
 import android.graphics.drawable.Drawable;
@@ -19,22 +17,14 @@ import android.widget.RemoteViews;
 @RemoteViews.RemoteView
 public class TimerView extends View {
 
-    public interface OnTimerStateChanged {
-        public void onFinished(TimerView timerView);
-
-        public void onStarted(TimerView timerView);
-    }
-
     private OnTimerStateChanged listener;
     private TimerViewCountDownTimer timerViewCountDownTimer;
     private Drawable secondHand;
     private Drawable timerFace;
     private int timerFaceWidth;
     private int timerFaceHeight;
-    private boolean attached;
     private boolean changed;
     private long duration;
-
     private float mSecond = 0;
     private Time time = new Time();
     private long interval = 1000;
@@ -65,21 +55,10 @@ public class TimerView extends View {
     }
 
     @Override
-    protected void onAttachedToWindow() {
-        super.onAttachedToWindow();
-        if (!attached) {
-            attached = true;
-            IntentFilter filter = new IntentFilter();
-            filter.addAction(Intent.ACTION_TIME_TICK);
-        }
-    }
-
-    @Override
     protected void onDetachedFromWindow() {
         super.onDetachedFromWindow();
-        if (attached) {
+        if (timerViewCountDownTimer != null) {
             timerViewCountDownTimer.cancel();
-            attached = false;
         }
         listener = null;
     }
@@ -159,14 +138,28 @@ public class TimerView extends View {
         }
     }
 
+    /**
+     * Set the duration of our timer.
+     *
+     * @param duration milliseconds as a long value greater than 1000ms (1 sec.)
+     * @return TimerView to facilitate a builder pattern.
+     * @throws IllegalStateException for values < 1000ms
+     */
     public TimerView setDuration(long duration) throws IllegalStateException {
-        if (duration <= 0) {
-            throw new IllegalStateException("Duration must be a positive number.");
+        if (duration < 1000) {
+            throw new IllegalStateException("Duration must be a positive number greater than 1000ms.");
         }
         this.duration = duration;
         return this;
     }
 
+    /**
+     * Set the update interval for our timer.
+     *
+     * @param interval milliseconds as a long value between 100 and 1000.
+     * @return TimerView to facilitate a builder pattern.
+     * @throws IllegalStateException for values < 100 or > 1000
+     */
     public TimerView setInterval(long interval) throws IllegalStateException {
         if (interval < 100 || interval > 1000) {
             throw new IllegalStateException("Interval must be between 100ms and 1000ms.");
@@ -175,22 +168,53 @@ public class TimerView extends View {
         return this;
     }
 
-    protected void start() throws IllegalStateException {
-        if (duration == 0) {
-            throw new IllegalStateException("You must set a duration before starting the timer.");
+    /**
+     * Set the number of times our timer should repeat.
+     *
+     * @param repetitions number of repetitions as an int > 0.
+     * @return TimerView to facilitate a builder pattern.
+     * @throws IllegalStateException for values < 1
+     */
+    public TimerView setRepetitions(int repetitions) throws IllegalStateException {
+        if (repetitions <= 0) {
+            throw new IllegalStateException("You must have at least 1 repetition.");
         }
-        timerViewCountDownTimer = new TimerViewCountDownTimer(duration, interval);
-        timerViewCountDownTimer.start();
-        listener.onStarted(this);
-    }
-
-    public TimerView setRepetitions(int repetitions) {
         this.repetitions = repetitions;
         return this;
     }
 
-    public void setListener(OnTimerStateChanged listener) {
+    /**
+     * Set the listener for our callbacks.
+     *
+     * @param listener
+     * @return TimerView to facilitate a builder pattern.
+     */
+    public TimerView setListener(OnTimerStateChanged listener) {
         this.listener = listener;
+        return this;
+    }
+
+    /**
+     * Start the countdown timer with the provided duration and either the default values for
+     * interval and repetitions or the values set by the model.
+     *
+     * @throws IllegalStateException if duration has not been set prior to starting the timer.
+     */
+    protected void start() throws IllegalStateException {
+        if (duration < 1000) {
+            throw new IllegalStateException("You must set a duration before starting the timer and the duration must be greater than 1000ms.");
+        }
+        timerViewCountDownTimer = new TimerViewCountDownTimer(duration, interval);
+        timerViewCountDownTimer.start();
+        if (listener != null) {
+            listener.onStarted(this);
+        }
+    }
+
+    public interface OnTimerStateChanged {
+        public void onFinished(TimerView timerView);
+
+        public void onStarted(TimerView timerView);
     }
 
     public class TimerViewCountDownTimer extends CountDownTimer {
@@ -204,7 +228,9 @@ public class TimerView extends View {
                 timerViewCountDownTimer.start();
                 return;
             }
-            listener.onFinished(TimerView.this);
+            if (listener != null) {
+                listener.onFinished(TimerView.this);
+            }
         }
 
         @Override
